@@ -2,25 +2,21 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { BestOutfitSelection, OutfitSuggestion, Product } from '../types';
 
 /**
- * Robust Neural Retry Wrapper.
- * Prevents "lag" errors by silently handling network jitter and rate limits (429/503).
+ * Robust Neural Retry Engine.
+ * Transparently manages API pressure to prevent user-facing "sync" or "lag" errors.
  */
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 3000): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 2500): Promise<T> {
   let lastError: any;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       return await fn();
     } catch (error: any) {
       lastError = error;
-      const errorMessage = error?.message?.toLowerCase() || "";
-      const isRetryable = errorMessage.includes("429") || 
-                          errorMessage.includes("quota") || 
-                          errorMessage.includes("limit") ||
-                          errorMessage.includes("503") ||
-                          errorMessage.includes("deadline");
+      const msg = error?.message?.toLowerCase() || "";
+      const isRetryable = msg.includes("429") || msg.includes("quota") || msg.includes("503") || msg.includes("limit") || msg.includes("deadline");
       
       if (attempt < maxRetries - 1 && isRetryable) {
-        const delay = baseDelay * (attempt + 1) + Math.random() * 1500;
+        const delay = baseDelay * Math.pow(1.5, attempt) + Math.random() * 1000;
         console.warn(`[Atelier] Neural link stabilizing. Calibrating attempt ${attempt + 1}...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
@@ -31,10 +27,6 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 30
   throw lastError;
 }
 
-/**
- * High-Resolution Neural Image Pre-processor.
- * Prepares images for high-fidelity Gemini 2.5 synthesis.
- */
 export const resizeImage = async (base64Str: string, maxWidth = 1024, maxHeight = 1024): Promise<string> => {
   return new Promise((resolve) => {
     if (!base64Str) { resolve(""); return; }
@@ -54,8 +46,7 @@ export const resizeImage = async (base64Str: string, maxWidth = 1024, maxHeight 
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      resolve(dataUrl.split(',')[1]);
+      resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
     };
     img.onerror = () => resolve(base64Str.split(',')[1] || base64Str); 
   });
@@ -74,8 +65,8 @@ export const imageUrlToBase64 = async (url: string): Promise<string> => {
 };
 
 /**
- * MANDATORY SURGICAL TRY-ON SYNTHESIS.
- * High-Fidelity requirements: Photorealism, Pose-aware Draping, and Identity Lock.
+ * MANDATORY SURGICAL SYNTHESIS CORE.
+ * Executes photorealistic garment mapping with advanced physics and material spectrality.
  */
 export const generateVirtualTryOn = async (userImageBase64: string, dressImageBase64: string): Promise<string> => {
   return withRetry(async () => {
@@ -83,22 +74,21 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
     const cleanUser = await resizeImage(userImageBase64, 1024, 1024);
     const cleanDress = await resizeImage(dressImageBase64, 1024, 1024);
     
-    const prompt = `NEURAL ATELIER PROTOCOL: SURGICAL FASHION SYNTHESIS.
+    const prompt = `CRITICAL ARCHITECTURAL DIRECTIVE: HIGH-FIDELITY FASHION RECONSTRUCTION.
     
-    ASSETS:
-    IMAGE 1: Subject person for try-on.
-    IMAGE 2: Target garment/dress asset.
+    IMAGE 1: Subject silhouette.
+    IMAGE 2: Target garment/asset.
     
-    EXECUTION DIRECTIVE (MANDATORY):
-    1. SURGICAL CLOTHING ERASURE: Cleanly erase ALL traces of the original clothing from the person in Image 1. Pay microscopic attention to boundaries at the neck, shoulders, wrists, and ankles. Ensure no original fabric "ghosting" or shadows remain.
-    2. FABRIC PHYSICS & DRAPING: Map the garment from Image 2 onto the subject in Image 1. You MUST simulate realistic fabric wrinkles, micro-creases, and tension points that occur naturally based on the subject's specific pose (e.g., bends in elbows, waist twists).
-    3. MATERIAL FIDELITY: Observe the material in Image 2. 
-       - If SILK/SATIN: Render with liquid-like drape, soft reflections, and high specular sheen.
-       - If COTTON/LINEN: Render with visible weave texture, matte finish, and structural crispness.
-    4. AMBIENT HARMONIZATION: Match the synthesized garment's lighting, color temperature, and shadows to the environment of Image 1 exactly.
-    5. IDENTITY LOCK: Maintain the user's face, hair, and skin tone with 100% fidelity.
+    NEURAL TRANSFORMATION PROTOCOL:
+    1. SURGICAL CLOTHING ERASURE: Perfectly remove all existing garments from the subject in Image 1. Pay absolute attention to skin boundaries, neckline, and wrists. Ensure zero "ghosting" of original fabric.
+    2. MATERIAL SPECTRALITY: 
+       - If garment in Image 2 is SILK/SATIN: Render with high specular sheen, liquid-like fluid draping, and soft surface reflections.
+       - If garment is COTTON/LINEN: Render with visible weave texture, matte finish, and sharp structural folds.
+    3. POSE-AWARE TENSION PHYSICS: Simulate realistic micro-creases and stress-folds at natural joint pivots (elbows, waist, armpits) based on the subject's posture in Image 1. 
+    4. AMBIENT LIGHTING HARMONIZATION: Analyze lighting intensity and temperature from Image 1. Apply matching highlights and contact shadows to the new garment so it integrates natively.
+    5. IDENTITY LOCK: Maintain the subject's face, hair, and skin tone with 100% fidelity.
     
-    FAILURE CONDITION: Return ONLY a high-fidelity pixel-perfect synthesis. Do NOT return original photos. Synthesis is mandatory.`;
+    OUTPUT REQUIREMENT: Perform a full synthesis. Do NOT return original photos. Return a single photorealistic result.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
@@ -111,12 +101,12 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
       },
       config: {
         imageConfig: { aspectRatio: "3:4" },
-        thinkingConfig: { thinkingBudget: 12000 } // Higher budget for complex physics calculations
+        thinkingConfig: { thinkingBudget: 15000 } // Maximum budget for physics and material calculations
       }
     });
 
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (!part) throw new Error("Synthesis failed to produce visual data. Neural recalibration required.");
+    if (!part) throw new Error("Synthesis failed to resolve visual data. Neural engine recalibration required.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
 };
@@ -129,12 +119,11 @@ export const chatWithAI = async (message: string, imageBase64?: string): Promise
       const cleanImg = await resizeImage(imageBase64, 512, 512);
       parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanImg } });
     }
-    
     const response = await ai.models.generateContent({ 
       model: 'gemini-3-flash-preview', 
       contents: { parts },
       config: {
-        systemInstruction: "You are LuxeFit AI Concierge. Provide elite, one-sentence styling insights.",
+        systemInstruction: "You are LuxeFit AI. Provide elite, concierge-level styling advice in exactly one sentence.",
         maxOutputTokens: 100,
       }
     });
@@ -150,7 +139,7 @@ export const analyzeColorTheory = async (imageBase64: string) => {
       model: 'gemini-3-flash-preview',
       contents: { 
         parts: [
-          { text: "Analyze skin undertones for color theory. Return JSON." }, 
+          { text: "Analyze skin undertones and return Seasonal Palette JSON." }, 
           { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }
         ] 
       },
@@ -171,63 +160,18 @@ export const analyzeColorTheory = async (imageBase64: string) => {
   });
 };
 
-export const generateLookbookImage = async (garmentBase64: string, items: OutfitSuggestion[], title: string) => {
+export const refineVirtualTryOn = async (imageBase64: string, type: string) => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const cleanImg = await resizeImage(garmentBase64, 1024, 1024);
-    const itemsText = items.map(i => i.itemName).join(", ");
-    const prompt = `HIGH-FIDELITY LOOKBOOK: Professional fashion editorial for ${title}. 
-    Garment styled with ${itemsText}. Premium studio lighting.`;
-    
+    const cleanImg = await resizeImage(imageBase64, 1024, 1024);
+    const prompt = `NEURAL POLISHING: Optimize lighting for ${type}. Ensure realistic shadows and micro-textures.`;
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (!part) throw new Error("Lookbook failed.");
-    return `data:image/png;base64,${part.inlineData.data}`;
-  });
-};
-
-export const generateProductImage = async (desc: string) => {
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: { parts: [{ text: `High-end product shot of ${desc}, centered, pure white studio background.` }] },
-      config: { imageConfig: { aspectRatio: "1:1" } }
-    });
-    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (!part) throw new Error("Asset failure.");
-    return `data:image/png;base64,${part.inlineData.data}`;
-  });
-};
-
-export const selectBestOutfit = async (images: string[], context: string) => {
-  return withRetry(async () => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const resizedImages = await Promise.all(images.map(img => resizeImage(img, 512, 512)));
-    const parts: any[] = [{ text: `Analyze for ${context} and pick the best. Return JSON.` }];
-    resizedImages.forEach(img => parts.push({ inlineData: { mimeType: 'image/jpeg', data: img } }));
-
-    const response = await ai.models.generateContent({ 
-      model: 'gemini-3-flash-preview', 
-      contents: { parts }, 
-      config: { 
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            selectedIndex: { type: Type.NUMBER },
-            reasoning: { type: Type.STRING },
-            stylingTips: { type: Type.STRING }
-          },
-          required: ["selectedIndex", "reasoning", "stylingTips"]
-        }
-      } 
-    });
-    return JSON.parse(response.text || "{}");
+    return part ? `data:image/png;base64,${part.inlineData.data}` : "";
   });
 };
 
@@ -272,18 +216,60 @@ export const getStylistSuggestions = async (imageBase64: string) => {
   });
 };
 
-export const refineVirtualTryOn = async (imageBase64: string, type: string) => {
+export const generateLookbookImage = async (garmentBase64: string, items: OutfitSuggestion[], title: string) => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const cleanImg = await resizeImage(imageBase64, 1024, 1024);
-    const prompt = `REFINE PROTOCOL: Optimize lighting and fit for ${type}. Ensure realistic contact shadows and fabric micro-textures.`;
-    
+    const cleanImg = await resizeImage(garmentBase64, 1024, 1024);
+    const itemsText = items.map(i => i.itemName).join(", ");
+    const prompt = `PROFESSIONAL LOOKBOOK: Fashion editorial for ${title}. Main garment styled with ${itemsText}. High-end studio lighting.`;
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
     const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    return part ? `data:image/png;base64,${part.inlineData.data}` : "";
+    if (!part) throw new Error("Lookbook failed.");
+    return `data:image/png;base64,${part.inlineData.data}`;
+  });
+};
+
+export const generateProductImage = async (desc: string) => {
+  return withRetry(async () => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: { parts: [{ text: `High-end product shot of ${desc}, centered, pure white studio background.` }] },
+      config: { imageConfig: { aspectRatio: "1:1" } }
+    });
+    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+    if (!part) throw new Error("Asset generation failure.");
+    return `data:image/png;base64,${part.inlineData.data}`;
+  });
+};
+
+export const selectBestOutfit = async (images: string[], context: string) => {
+  return withRetry(async () => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const resizedImages = await Promise.all(images.map(img => resizeImage(img, 512, 512)));
+    const parts: any[] = [{ text: `Analyze for ${context} and pick the best. Return JSON.` }];
+    resizedImages.forEach(img => parts.push({ inlineData: { mimeType: 'image/jpeg', data: img } }));
+
+    const response = await ai.models.generateContent({ 
+      model: 'gemini-3-flash-preview', 
+      contents: { parts }, 
+      config: { 
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            selectedIndex: { type: Type.NUMBER },
+            reasoning: { type: Type.STRING },
+            stylingTips: { type: Type.STRING }
+          },
+          required: ["selectedIndex", "reasoning", "stylingTips"]
+        }
+      } 
+    });
+    return JSON.parse(response.text || "{}");
   });
 };
