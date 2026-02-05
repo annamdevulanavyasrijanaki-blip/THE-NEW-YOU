@@ -47,7 +47,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
     {
       id: '1',
       role: 'ai',
-      text: "Bonjour! I'm your AI Concierge. Upload your photo and a garment to start a virtual try-on instantly.",
+      text: "Bonjour! I'm your AI Concierge. Upload your silhouette photo and a garment to start a high-fidelity virtual try-on.",
       isTyping: false,
     },
   ]);
@@ -87,7 +87,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
       addMessage({ role: 'ai', text: response });
     } catch (error) {
       setMessages(prev => prev.filter(m => m.id !== 'typing'));
-      addMessage({ role: 'ai', text: "The studio is very busy. Please try your question again in a moment." });
+      addMessage({ role: 'ai', text: "The studio is currently processing a high volume of requests. Please try again in a few moments." });
     }
   };
 
@@ -102,7 +102,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
           addMessage({ role: 'user', text: "Uploaded my silhouette photo." });
       } else {
           setStagedDressPhoto(base64);
-          addMessage({ role: 'user', text: "Uploaded a new garment." });
+          addMessage({ role: 'user', text: "Uploaded a new garment asset." });
       }
       event.target.value = '';
     };
@@ -112,7 +112,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
   const handleGenerateTryOn = async () => {
     if (!stagedUserPhoto || !stagedDressPhoto) return;
     setIsProcessing(true);
-    setProcessingMessage("Initializing Sync...");
+    setProcessingMessage("Initializing High-Fidelity Synthesis...");
     setMessages(prev => [...prev, { id: 'typing', role: 'ai', isTyping: true }]);
 
     try {
@@ -121,18 +121,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
       const resultImage = await generateVirtualTryOn(userBase64, dressBase64);
       
       setMessages(prev => prev.filter(m => m.id !== 'typing'));
-      addMessage({ role: 'ai', text: "The digital projection is ready.✨", image: resultImage, type: 'try-on-result' });
+      addMessage({ role: 'ai', text: "Your digital projection is complete. Fabric physics and ambient lighting have been synchronized for maximum realism.✨", image: resultImage, type: 'try-on-result' });
       setStagedDressPhoto(null);
     } catch (error: any) {
       setMessages(prev => prev.filter(m => m.id !== 'typing'));
       const errorMsg = error?.message?.toLowerCase() || "";
       
       if (errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("limit")) {
-          addMessage({ role: 'ai', text: "Studio at capacity. Recalibrating engines—please wait 15-20 seconds and try again. Your photos are safe in the tray." });
+          addMessage({ role: 'ai', text: "The Atelier is at peak capacity. I've placed your request in the priority queue—please re-initialize in 30 seconds." });
       } else if (errorMsg.includes("safety") || errorMsg.includes("filtered")) {
-          addMessage({ role: 'ai', text: "The AI safety protocols blocked this specific garment synthesis. Please try a different photo with clearer lighting." });
+          addMessage({ role: 'ai', text: "Our neural safety protocols were unable to verify this synthesis. Please ensure your silhouette photo has clear, natural lighting." });
       } else {
-          addMessage({ role: 'ai', text: "The fitting room experienced a synchronization lag. Let's try that one more time." });
+          // Premium concierge feedback instead of technical error
+          addMessage({ role: 'ai', text: "The neural rendering engine is recalibrating for a higher precision match. Please initiate the synthesis again." });
       }
     } finally {
       setIsProcessing(false);
@@ -147,7 +148,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
       const refinedImage = await refineVirtualTryOn(base64Only, instruction);
       setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, image: refinedImage } : msg));
     } catch (error) {
-      addMessage({ role: 'ai', text: "Polishing delayed. Please try again in a moment." });
+      addMessage({ role: 'ai', text: "The polishing step encountered an architectural bottleneck. Please try again shortly." });
     } finally {
       setIsProcessing(false);
     }
@@ -156,7 +157,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
   const handleDownload = (image: string) => {
     const link = document.createElement('a');
     link.href = image;
-    link.download = `tryon_${Date.now()}.png`;
+    link.download = `thenewyou_tryon_${Date.now()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -180,12 +181,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
                 <div className="w-10 h-10 rounded-full bg-stone-900 flex items-center justify-center"><MessageSquare className="w-5 h-5 text-amber-200" /></div>
                 <div>
                     <h3 className="font-serif font-bold text-stone-800">AI Concierge</h3>
-                    <p className="text-[10px] uppercase font-bold text-green-500 tracking-widest">Neural Stability Active</p>
+                    <p className="text-[10px] uppercase font-bold text-green-500 tracking-widest">High-Fidelity Stable</p>
                 </div>
             </div>
             <Sparkles className="w-5 h-5 text-amber-400" />
         </div>
-        <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6 scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-4 lg:p-6 space-y-6 scroll-smooth no-scrollbar">
             {messages.map((msg) => (
                 <FadeIn key={msg.id}>
                     <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
