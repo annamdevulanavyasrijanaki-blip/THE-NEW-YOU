@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { BestOutfitSelection, OutfitSuggestion, Product } from '../types';
 
+// Global retry logic for AI and remote asset synchronization
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 2500): Promise<T> {
   let lastError: any;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -47,15 +48,29 @@ export const resizeImage = async (base64Str: string, maxWidth = 1024, maxHeight 
   });
 };
 
+// Fixed: Added robust error handling and withRetry for external asset fetching
 export const imageUrlToBase64 = async (url: string): Promise<string> => {
-  const proxiedUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=jpg&q=85`;
-  const response = await fetch(proxiedUrl);
-  const blob = await response.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
+  return withRetry(async () => {
+    const proxiedUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=jpg&q=85`;
+    const response = await fetch(proxiedUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Cloud asset synchronization failed: ${response.status} ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result.split(',')[1]);
+        } else {
+          reject(new Error("Neural processing failed to encode asset stream."));
+        }
+      };
+      reader.onerror = () => reject(new Error("I/O error during asset serialization."));
+      reader.readAsDataURL(blob);
+    });
   });
 };
 
@@ -142,6 +157,7 @@ export const analyzeColorTheory = async (imageBase64: string) => {
         }
       }
     });
+    // Fixed: Standardized direct access to text property
     return JSON.parse(response.text || "{}");
   });
 };
@@ -182,6 +198,7 @@ export const getStylistSuggestions = async (imageBase64: string) => {
         }
       }
     });
+    // Fixed: Standardized direct access to text property
     return JSON.parse(response.text || "{}");
   });
 };
@@ -235,6 +252,7 @@ export const selectBestOutfit = async (images: string[], context: string) => {
         }
       } 
     });
+    // Fixed: Standardized direct access to text property
     return JSON.parse(response.text || "{}");
   });
 };
