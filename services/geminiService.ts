@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { BestOutfitSelection, OutfitSuggestion, Product } from '../types';
 
@@ -79,7 +78,6 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
     5. IDENTITY LOCK: Maintain the subject's face, hair, and skin tone with 100% fidelity.
     OUTPUT REQUIREMENT: Perform a full synthesis. Do NOT return original photos. Return a single photorealistic result.`;
 
-    // Added maxOutputTokens to accompany thinkingBudget as per Gemini SDK guidelines.
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -96,8 +94,8 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
       }
     });
 
-    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (!part) throw new Error("Synthesis failed to resolve visual data. Neural engine recalibration required.");
+    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (!part || !part.inlineData) throw new Error("Synthesis failed to resolve visual data. Neural engine recalibration required.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
 };
@@ -110,7 +108,6 @@ export const chatWithAI = async (message: string, imageBase64?: string): Promise
       const cleanImg = await resizeImage(imageBase64, 512, 512);
       parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanImg } });
     }
-    // Added thinkingBudget to accompany maxOutputTokens to ensure sufficient tokens are reserved for the final output.
     const response = await ai.models.generateContent({ 
       model: 'gemini-3-flash-preview', 
       contents: { parts },
@@ -159,8 +156,8 @@ export const refineVirtualTryOn = async (imageBase64: string, type: string) => {
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
-    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    return part ? `data:image/png;base64,${part.inlineData.data}` : "";
+    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    return (part && part.inlineData) ? `data:image/png;base64,${part.inlineData.data}` : "";
   });
 };
 
@@ -200,8 +197,8 @@ export const generateLookbookImage = async (garmentBase64: string, items: Outfit
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
-    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (!part) throw new Error("Lookbook failed.");
+    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (!part || !part.inlineData) throw new Error("Lookbook failed.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
 };
@@ -214,8 +211,8 @@ export const generateProductImage = async (desc: string) => {
       contents: { parts: [{ text: `High-end product shot of ${desc}, centered, pure white studio background.` }] },
       config: { imageConfig: { aspectRatio: "1:1" } }
     });
-    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (!part) throw new Error("Asset generation failure.");
+    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    if (!part || !part.inlineData) throw new Error("Asset generation failure.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
 };
