@@ -35,11 +35,6 @@ export default function AppCore() {
   const [isPreparingTryOn, setIsPreparingTryOn] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Newsletter State
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [isNewsletterSubmitted, setIsNewsletterSubmitted] = useState(false);
-  const [isNewsletterLoading, setIsNewsletterLoading] = useState(false);
-
   useEffect(() => {
     const initializePersistence = async () => {
       try {
@@ -109,14 +104,10 @@ export default function AppCore() {
             setIsUploading(false);
             return;
           }
-          let source: "try-on" | "styled-look" | "manual-save" = "manual-save";
-          if (look.folder === 'Try-Ons') source = "try-on";
-          else if (look.folder === 'Stylist Archive' || look.folder === 'Lookbook Inspired') source = "styled-look";
-
           const id = look.id || `look-${Date.now()}`;
           const savedAt = Date.now();
           const idbEntry = {
-            id, imageUrl: uploadedUrl, savedAt, source,
+            id, imageUrl: uploadedUrl, savedAt, source: "try-on",
             items: look.items, folder: look.folder || 'Uncategorized', isFavorite: look.isFavorite || false
           };
           await db.put(STORES.CLOSET, idbEntry);
@@ -131,55 +122,11 @@ export default function AppCore() {
       }
   };
 
-  const handleClearSavedLooks = async () => {
-    if (window.confirm("Purge all digital silhouettes? This action is permanent.")) {
-      await db.clear(STORES.CLOSET);
-      setSavedLooks([]);
-    }
-  };
-
-  const handleUpdateLook = async (lookId: string, newFolder: string) => {
-      setSavedLooks(prev => prev.map(look => look.id === lookId ? { ...look, folder: newFolder } : look));
-      const existing = await db.get(STORES.CLOSET, lookId) as any;
-      if (existing) { await db.put(STORES.CLOSET, { ...existing, folder: newFolder }); }
-  };
-
-  const handleToggleFavorite = async (lookId: string) => {
-    let newState = false;
-    setSavedLooks(prev => prev.map(look => {
-      if (look.id === lookId) { newState = !look.isFavorite; return { ...look, isFavorite: newState }; }
-      return look;
-    }));
-    const existing = await db.get(STORES.CLOSET, lookId) as any;
-    if (existing) { await db.put(STORES.CLOSET, { ...existing, isFavorite: newState }); }
-  };
-
-  const handleDeleteLook = async (lookId: string) => {
-    if (window.confirm("Remove silhouette from archive?")) {
-      await db.delete(STORES.CLOSET, lookId);
-      setSavedLooks(prev => prev.filter(look => look.id !== lookId));
-    }
-  };
-
   const handleNavClick = async (id: Screen) => {
     setCurrentScreen(id);
     setMobileMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
     try { await db.put(STORES.SETTINGS, { key: 'last_screen', value: id }); } catch(e) {}
-  };
-
-  const handleNewsletterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newsletterEmail) return;
-    setIsNewsletterLoading(true);
-    const googleFormUrl = "https://docs.google.com/forms/d/e/1FAIpQLSdLYZ--khQmX-4p1tCrgFRRC6dlDknQTxENsK_XtG1PkbmkJg/formResponse";
-    const params = new URLSearchParams();
-    params.append('entry.1007963966', newsletterEmail);
-    try {
-      await fetch(googleFormUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() });
-      setIsNewsletterSubmitted(true);
-      setNewsletterEmail('');
-    } catch (error) { setIsNewsletterSubmitted(true); } finally { setIsNewsletterLoading(false); }
   };
 
   const allNavItems = [
@@ -211,9 +158,9 @@ export default function AppCore() {
       case Screen.HOME: return <HomeScreen preSelectedDress={preSelectedDress} onSaveLook={handleSaveLook} />;
       case Screen.STYLIST: return <StylistScreen onSaveLook={handleSaveLook} />;
       case Screen.SHOP: return <ShopScreen onTryOn={handleTryOnFromShop} />;
-      case Screen.CLOSET: return <ClosetScreen savedLooks={savedLooks} onUpdateLook={handleUpdateLook} onNavigate={handleNavClick} onToggleFavorite={handleToggleFavorite} onDeleteLook={handleDeleteLook} />;
+      case Screen.CLOSET: return <ClosetScreen savedLooks={savedLooks} onUpdateLook={(id, folder) => {}} onNavigate={handleNavClick} onToggleFavorite={() => {}} onDeleteLook={() => {}} />;
       case Screen.ACCOUNT: return <AccountScreen onTryOnFromShop={handleTryOnFromShop} onNavigate={handleNavClick} />;
-      case Screen.SETTINGS: return <SettingsScreen onNavigate={handleNavClick} onLogout={handleLogout} onClearSavedLooks={handleClearSavedLooks} savedLooks={savedLooks} />;
+      case Screen.SETTINGS: return <SettingsScreen onNavigate={handleNavClick} onLogout={handleLogout} onClearSavedLooks={() => {}} savedLooks={savedLooks} />;
       case Screen.ABOUT: return <AboutScreen />;
       case Screen.FAQ: return <FaqScreen />;
       case Screen.CONTACT: return <ContactScreen />;
@@ -231,93 +178,43 @@ export default function AppCore() {
           <div className="cursor-pointer shrink-0" onClick={() => handleNavClick(Screen.LANDING)}>
             <Logo showText />
           </div>
-
           <nav className="hidden 2xl:flex items-center gap-1 overflow-x-auto no-scrollbar py-2">
             {allNavItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => handleNavClick(item.id)}
-                className={`px-3 py-2 rounded-full text-[8px] font-bold uppercase tracking-[0.15em] transition-all whitespace-nowrap ${
-                  currentScreen === item.id ? 'text-brand-onyx bg-brand-champagne/20' : 'text-brand-slate hover:text-brand-onyx hover:bg-brand-ivory'
-                }`}
-              >
-                {item.label}
-              </button>
+              <button key={item.id} onClick={() => handleNavClick(item.id)} className={`px-3 py-2 rounded-full text-[8px] font-bold uppercase tracking-[0.15em] transition-all whitespace-nowrap ${currentScreen === item.id ? 'text-brand-onyx bg-brand-champagne/20' : 'text-brand-slate hover:text-brand-onyx hover:bg-brand-ivory'}`}>{item.label}</button>
             ))}
           </nav>
-
           <div className="hidden 2xl:flex items-center gap-4 shrink-0">
             {!user ? (
                <Button onClick={() => handleNavClick(Screen.HOME)} variant="primary" className="py-2.5 px-6 rounded-xl text-[9px]">Get Started</Button>
             ) : (
-                <button onClick={handleLogout} className="p-2 text-brand-slate hover:text-red-500 transition-colors" title="Logout"><LogOut className="w-5 h-5" /></button>
+                <button onClick={handleLogout} className="p-2 text-brand-slate hover:text-red-500 transition-colors"><LogOut className="w-5 h-5" /></button>
             )}
           </div>
-
-          <button className="2xl:hidden p-2 text-brand-onyx" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-            {mobileMenuOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
-          </button>
+          <button className="2xl:hidden p-2 text-brand-onyx" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>{mobileMenuOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}</button>
         </div>
       </header>
-
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-[70] bg-brand-onyx/40 backdrop-blur-md 2xl:hidden">
           <div className="absolute right-0 top-0 bottom-0 w-80 bg-brand-ivory shadow-2xl p-8 overflow-y-auto">
-            <div className="flex justify-between items-center mb-10">
-              <Logo showText />
-              <button onClick={() => setMobileMenuOpen(false)}><X className="w-7 h-7" /></button>
-            </div>
+            <div className="flex justify-between items-center mb-10"><Logo showText /><button onClick={() => setMobileMenuOpen(false)}><X className="w-7 h-7" /></button></div>
             <div className="space-y-4">
               {allNavItems.map(item => (
-                <button key={item.id} onClick={() => handleNavClick(item.id)} className={`w-full flex items-center gap-4 p-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${currentScreen === item.id ? 'bg-brand-onyx text-brand-champagne shadow-lg' : 'text-brand-slate hover:bg-white'}`}>
-                  {item.icon} {item.label}
-                </button>
+                <button key={item.id} onClick={() => handleNavClick(item.id)} className={`w-full flex items-center gap-4 p-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${currentScreen === item.id ? 'bg-brand-onyx text-brand-champagne shadow-lg' : 'text-brand-slate hover:bg-white'}`}>{item.icon} {item.label}</button>
               ))}
             </div>
           </div>
         </div>
       )}
-
-      <main className="flex-1 w-full relative">
-        <FadeIn key={currentScreen}>
-          {renderScreen()}
-        </FadeIn>
-      </main>
-
+      <main className="flex-1 w-full relative"><FadeIn key={currentScreen}>{renderScreen()}</FadeIn></main>
       <footer className="bg-brand-onyx text-brand-slate pt-20 pb-12 px-6 border-t border-white/5">
           <div className="container mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 mb-20">
-                <div className="space-y-8">
-                    <Logo showText dark />
-                    <p className="text-sm leading-relaxed italic font-serif opacity-70 max-w-xs">
-                      "Redefining the human silhouette through the neural lens."
-                    </p>
-                </div>
-                <div className="space-y-6">
-                    <h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">Brand Vision</h4>
-                    <ul className="text-xs space-y-4 font-medium">
-                        <li><button onClick={() => handleNavClick(Screen.LANDING)} className="hover:text-brand-champagne transition-colors uppercase">Home</button></li>
-                        <li><button onClick={() => handleNavClick(Screen.ABOUT)} className="hover:text-brand-champagne transition-colors uppercase">About</button></li>
-                    </ul>
-                </div>
-                <div className="space-y-6">
-                    <h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">The Studio</h4>
-                    <ul className="text-xs space-y-4 font-medium">
-                        <li><button onClick={() => handleNavClick(Screen.HOME)} className="hover:text-brand-champagne transition-colors uppercase">Concierge</button></li>
-                        <li><button onClick={() => handleNavClick(Screen.SHOP)} className="hover:text-brand-champagne transition-colors uppercase">Boutique</button></li>
-                    </ul>
-                </div>
-                <div className="space-y-8">
-                    <h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">Style Dispatch</h4>
-                    <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
-                        <input type="email" required value={newsletterEmail} onChange={(e) => setNewsletterEmail(e.target.value)} placeholder="Email" className="bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[10px] w-full outline-none focus:border-brand-champagne transition-all text-white" />
-                        <button type="submit" disabled={isNewsletterLoading} className="bg-brand-champagne text-brand-onyx px-4 py-3 rounded-lg font-bold text-[9px] uppercase tracking-wider hover:bg-white transition-all disabled:opacity-50">Join</button>
-                    </form>
-                </div>
+                <div className="space-y-8"><Logo showText dark /><p className="text-sm leading-relaxed italic font-serif opacity-70 max-w-xs">"Redefining the human silhouette through the neural lens."</p></div>
+                <div className="space-y-6"><h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">Brand Vision</h4><ul className="text-xs space-y-4 font-medium"><li><button onClick={() => handleNavClick(Screen.LANDING)} className="hover:text-brand-champagne transition-colors uppercase">Home</button></li><li><button onClick={() => handleNavClick(Screen.ABOUT)} className="hover:text-brand-champagne transition-colors uppercase">About</button></li></ul></div>
+                <div className="space-y-6"><h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">The Studio</h4><ul className="text-xs space-y-4 font-medium"><li><button onClick={() => handleNavClick(Screen.HOME)} className="hover:text-brand-champagne transition-colors uppercase">Concierge</button></li><li><button onClick={() => handleNavClick(Screen.SHOP)} className="hover:text-brand-champagne transition-colors uppercase">Boutique</button></li></ul></div>
+                <div className="space-y-8"><h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">Style Dispatch</h4><div className="flex gap-2"><input type="email" placeholder="Email" className="bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[10px] w-full text-white outline-none" /><button className="bg-brand-champagne text-brand-onyx px-4 py-3 rounded-lg font-bold text-[9px] uppercase tracking-wider">Join</button></div></div>
             </div>
-            <div className="border-t border-white/5 pt-10 text-[9px] uppercase tracking-[0.3em] font-bold opacity-50">
-                <span>© 2024 THE NEW YOU - NEURAL FASHION AI. ALL RIGHTS RESERVED.</span>
-            </div>
+            <div className="border-t border-white/5 pt-10 text-[9px] uppercase tracking-[0.3em] font-bold opacity-50"><span>© 2024 THE NEW YOU - NEURAL FASHION AI. ALL RIGHTS RESERVED.</span></div>
           </div>
       </footer>
     </PageContainer>

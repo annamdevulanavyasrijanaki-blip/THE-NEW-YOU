@@ -1,6 +1,6 @@
 {
-  "name": "the-new-you-high-fidelity",
-  "version": "2.0.0",
+  "name": "the-new-you-nextjs",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

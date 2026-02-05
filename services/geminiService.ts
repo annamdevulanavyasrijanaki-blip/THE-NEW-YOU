@@ -1,10 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { BestOutfitSelection, OutfitSuggestion, Product } from '../types';
 
-/**
- * Robust Neural Retry Engine.
- * Transparently manages API pressure to prevent user-facing "sync" or "lag" errors.
- */
 async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 2500): Promise<T> {
   let lastError: any;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -14,7 +10,6 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 25
       lastError = error;
       const msg = error?.message?.toLowerCase() || "";
       const isRetryable = msg.includes("429") || msg.includes("quota") || msg.includes("503") || msg.includes("limit") || msg.includes("deadline");
-      
       if (attempt < maxRetries - 1 && isRetryable) {
         const delay = baseDelay * Math.pow(1.5, attempt) + Math.random() * 1000;
         console.warn(`[Atelier] Neural link stabilizing. Calibrating attempt ${attempt + 1}...`);
@@ -64,10 +59,6 @@ export const imageUrlToBase64 = async (url: string): Promise<string> => {
   });
 };
 
-/**
- * MANDATORY SURGICAL SYNTHESIS CORE.
- * Executes photorealistic garment mapping with advanced physics and material spectrality.
- */
 export const generateVirtualTryOn = async (userImageBase64: string, dressImageBase64: string): Promise<string> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -75,10 +66,8 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
     const cleanDress = await resizeImage(dressImageBase64, 1024, 1024);
     
     const prompt = `CRITICAL ARCHITECTURAL DIRECTIVE: HIGH-FIDELITY FASHION RECONSTRUCTION.
-    
     IMAGE 1: Subject silhouette.
     IMAGE 2: Target garment/asset.
-    
     NEURAL TRANSFORMATION PROTOCOL:
     1. SURGICAL CLOTHING ERASURE: Perfectly remove all existing garments from the subject in Image 1. Pay absolute attention to skin boundaries, neckline, and wrists. Ensure zero "ghosting" of original fabric.
     2. MATERIAL SPECTRALITY: 
@@ -87,7 +76,6 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
     3. POSE-AWARE TENSION PHYSICS: Simulate realistic micro-creases and stress-folds at natural joint pivots (elbows, waist, armpits) based on the subject's posture in Image 1. 
     4. AMBIENT LIGHTING HARMONIZATION: Analyze lighting intensity and temperature from Image 1. Apply matching highlights and contact shadows to the new garment so it integrates natively.
     5. IDENTITY LOCK: Maintain the subject's face, hair, and skin tone with 100% fidelity.
-    
     OUTPUT REQUIREMENT: Perform a full synthesis. Do NOT return original photos. Return a single photorealistic result.`;
 
     const response = await ai.models.generateContent({
@@ -101,7 +89,7 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
       },
       config: {
         imageConfig: { aspectRatio: "3:4" },
-        thinkingConfig: { thinkingBudget: 15000 } // Maximum budget for physics and material calculations
+        thinkingConfig: { thinkingBudget: 15000 }
       }
     });
 
@@ -122,10 +110,7 @@ export const chatWithAI = async (message: string, imageBase64?: string): Promise
     const response = await ai.models.generateContent({ 
       model: 'gemini-3-flash-preview', 
       contents: { parts },
-      config: {
-        systemInstruction: "You are LuxeFit AI. Provide elite, concierge-level styling advice in exactly one sentence.",
-        maxOutputTokens: 100,
-      }
+      config: { systemInstruction: "You are LuxeFit AI. Provide elite, concierge-level styling advice in exactly one sentence.", maxOutputTokens: 100 }
     });
     return response.text || "...";
   });
@@ -147,11 +132,7 @@ export const analyzeColorTheory = async (imageBase64: string) => {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
-          properties: {
-            season: { type: Type.STRING },
-            colors: { type: Type.ARRAY, items: { type: Type.STRING } },
-            advice: { type: Type.STRING }
-          },
+          properties: { season: { type: Type.STRING }, colors: { type: Type.ARRAY, items: { type: Type.STRING } }, advice: { type: Type.STRING } },
           required: ["season", "colors", "advice"]
         }
       }
@@ -182,10 +163,7 @@ export const getStylistSuggestions = async (imageBase64: string) => {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { 
-        parts: [
-          { text: "Suggest 3 complementary styling pieces. Return JSON." }, 
-          { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }
-        ] 
+        parts: [{ text: "Suggest 3 complementary styling pieces. Return JSON." }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] 
       },
       config: { 
         responseMimeType: "application/json",
@@ -193,20 +171,7 @@ export const getStylistSuggestions = async (imageBase64: string) => {
           type: Type.OBJECT,
           properties: {
             conceptTitle: { type: Type.STRING },
-            suggestions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  itemName: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  category: { type: Type.STRING },
-                  searchQuery: { type: Type.STRING },
-                  visualDescription: { type: Type.STRING }
-                },
-                required: ["itemName", "description", "category", "searchQuery", "visualDescription"]
-              }
-            }
+            suggestions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { itemName: { type: Type.STRING }, description: { type: Type.STRING }, category: { type: Type.STRING }, searchQuery: { type: Type.STRING }, visualDescription: { type: Type.STRING } }, required: ["itemName", "description", "category", "searchQuery", "visualDescription"] } }
           },
           required: ["conceptTitle", "suggestions"]
         }
@@ -253,7 +218,6 @@ export const selectBestOutfit = async (images: string[], context: string) => {
     const resizedImages = await Promise.all(images.map(img => resizeImage(img, 512, 512)));
     const parts: any[] = [{ text: `Analyze for ${context} and pick the best. Return JSON.` }];
     resizedImages.forEach(img => parts.push({ inlineData: { mimeType: 'image/jpeg', data: img } }));
-
     const response = await ai.models.generateContent({ 
       model: 'gemini-3-flash-preview', 
       contents: { parts }, 
@@ -261,11 +225,7 @@ export const selectBestOutfit = async (images: string[], context: string) => {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
-          properties: {
-            selectedIndex: { type: Type.NUMBER },
-            reasoning: { type: Type.STRING },
-            stylingTips: { type: Type.STRING }
-          },
+          properties: { selectedIndex: { type: Type.NUMBER }, reasoning: { type: Type.STRING }, stylingTips: { type: Type.STRING } },
           required: ["selectedIndex", "reasoning", "stylingTips"]
         }
       } 

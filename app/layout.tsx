@@ -25,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${lora.variable} ${montserrat.variable}`}>
-      <body className="font-sans selection:bg-brand-champagne/30">
+      <body className="font-sans selection:bg-brand-champagne/30 overflow-x-hidden">
         {children}
       </body>
     </html>
