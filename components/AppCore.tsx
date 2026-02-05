@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -122,6 +123,36 @@ export default function AppCore() {
       }
   };
 
+  const handleUpdateLook = async (lookId: string, newFolder: string) => {
+      setSavedLooks(prev => prev.map(look => look.id === lookId ? { ...look, folder: newFolder } : look));
+      const existing = await db.get(STORES.CLOSET, lookId) as any;
+      if (existing) { await db.put(STORES.CLOSET, { ...existing, folder: newFolder }); }
+  };
+
+  const handleToggleFavorite = async (lookId: string) => {
+    let newState = false;
+    setSavedLooks(prev => prev.map(look => {
+      if (look.id === lookId) { newState = !look.isFavorite; return { ...look, isFavorite: newState }; }
+      return look;
+    }));
+    const existing = await db.get(STORES.CLOSET, lookId) as any;
+    if (existing) { await db.put(STORES.CLOSET, { ...existing, isFavorite: newState }); }
+  };
+
+  const handleDeleteLook = async (lookId: string) => {
+    if (window.confirm("Remove this look?")) {
+      await db.delete(STORES.CLOSET, lookId);
+      setSavedLooks(prev => prev.filter(look => look.id !== lookId));
+    }
+  };
+
+  const handleClearSavedLooks = async () => {
+    if (window.confirm("Are you sure? This cannot be undone.")) {
+      await db.clear(STORES.CLOSET);
+      setSavedLooks([]);
+    }
+  };
+
   const handleNavClick = async (id: Screen) => {
     setCurrentScreen(id);
     setMobileMenuOpen(false);
@@ -156,11 +187,11 @@ export default function AppCore() {
     switch (currentScreen) {
       case Screen.LANDING: return <LandingScreen onNavigate={handleNavClick} />;
       case Screen.HOME: return <HomeScreen preSelectedDress={preSelectedDress} onSaveLook={handleSaveLook} />;
-      case Screen.STYLIST: return <StylistScreen onSaveLook={handleSaveLook} />;
+      case Screen.STYLIST: return <StylistScreen onSaveLook={handleSaveLook} onNavigate={handleNavClick} />;
       case Screen.SHOP: return <ShopScreen onTryOn={handleTryOnFromShop} />;
-      case Screen.CLOSET: return <ClosetScreen savedLooks={savedLooks} onUpdateLook={(id, folder) => {}} onNavigate={handleNavClick} onToggleFavorite={() => {}} onDeleteLook={() => {}} />;
+      case Screen.CLOSET: return <ClosetScreen savedLooks={savedLooks} onUpdateLook={handleUpdateLook} onNavigate={handleNavClick} onToggleFavorite={handleToggleFavorite} onDeleteLook={handleDeleteLook} />;
       case Screen.ACCOUNT: return <AccountScreen onTryOnFromShop={handleTryOnFromShop} onNavigate={handleNavClick} />;
-      case Screen.SETTINGS: return <SettingsScreen onNavigate={handleNavClick} onLogout={handleLogout} onClearSavedLooks={() => {}} savedLooks={savedLooks} />;
+      case Screen.SETTINGS: return <SettingsScreen onNavigate={handleNavClick} onLogout={handleLogout} onClearSavedLooks={handleClearSavedLooks} savedLooks={savedLooks} />;
       case Screen.ABOUT: return <AboutScreen />;
       case Screen.FAQ: return <FaqScreen />;
       case Screen.CONTACT: return <ContactScreen />;
@@ -202,6 +233,11 @@ export default function AppCore() {
                 <button key={item.id} onClick={() => handleNavClick(item.id)} className={`w-full flex items-center gap-4 p-4 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${currentScreen === item.id ? 'bg-brand-onyx text-brand-champagne shadow-lg' : 'text-brand-slate hover:bg-white'}`}>{item.icon} {item.label}</button>
               ))}
             </div>
+            {user && (
+                <button onClick={handleLogout} className="mt-12 w-full flex items-center justify-center gap-4 p-4 text-red-500 font-bold border border-red-100 rounded-xl uppercase text-[10px] tracking-widest bg-red-50/30">
+                    <LogOut className="w-4 h-4" /> Sign Out
+                </button>
+            )}
           </div>
         </div>
       )}
@@ -211,7 +247,7 @@ export default function AppCore() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 mb-20">
                 <div className="space-y-8"><Logo showText dark /><p className="text-sm leading-relaxed italic font-serif opacity-70 max-w-xs">"Redefining the human silhouette through the neural lens."</p></div>
                 <div className="space-y-6"><h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">Brand Vision</h4><ul className="text-xs space-y-4 font-medium"><li><button onClick={() => handleNavClick(Screen.LANDING)} className="hover:text-brand-champagne transition-colors uppercase">Home</button></li><li><button onClick={() => handleNavClick(Screen.ABOUT)} className="hover:text-brand-champagne transition-colors uppercase">About</button></li></ul></div>
-                <div className="space-y-6"><h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">The Studio</h4><ul className="text-xs space-y-4 font-medium"><li><button onClick={() => handleNavClick(Screen.HOME)} className="hover:text-brand-champagne transition-colors uppercase">Concierge</button></li><li><button onClick={() => handleNavClick(Screen.SHOP)} className="hover:text-brand-champagne transition-colors uppercase">Boutique</button></li></ul></div>
+                <div className="space-y-6"><h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">The Studio</h4><ul className="text-xs space-y-4 font-medium"><li><button onClick={() => handleNavClick(Screen.HOME)} className="hover:text-brand-champagne transition-colors uppercase">Concierge</button></li><li><button onClick={() => handleNavClick(Screen.STYLIST)} className="hover:text-brand-champagne transition-colors uppercase">Atelier</button></li><li><button onClick={() => handleNavClick(Screen.SHOP)} className="hover:text-brand-champagne transition-colors uppercase">Boutique</button></li></ul></div>
                 <div className="space-y-8"><h4 className="text-white font-bold uppercase tracking-[0.3em] text-[10px]">Style Dispatch</h4><div className="flex gap-2"><input type="email" placeholder="Email" className="bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-[10px] w-full text-white outline-none" /><button className="bg-brand-champagne text-brand-onyx px-4 py-3 rounded-lg font-bold text-[9px] uppercase tracking-wider">Join</button></div></div>
             </div>
             <div className="border-t border-white/5 pt-10 text-[9px] uppercase tracking-[0.3em] font-bold opacity-50"><span>© 2024 THE NEW YOU - NEURAL FASHION AI. ALL RIGHTS RESERVED.</span></div>

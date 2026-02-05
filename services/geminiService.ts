@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { BestOutfitSelection, OutfitSuggestion, Product } from '../types';
 
@@ -48,7 +49,6 @@ export const resizeImage = async (base64Str: string, maxWidth = 1024, maxHeight 
   });
 };
 
-// Fixed: Added robust error handling and withRetry for external asset fetching
 export const imageUrlToBase64 = async (url: string): Promise<string> => {
   return withRetry(async () => {
     const proxiedUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=jpg&q=85`;
@@ -109,7 +109,7 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
       }
     });
 
-    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    const part = response.candidates?.[0]?.content?.parts?.find(p => !!p.inlineData);
     if (!part || !part.inlineData) throw new Error("Synthesis failed to resolve visual data. Neural engine recalibration required.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
@@ -157,7 +157,6 @@ export const analyzeColorTheory = async (imageBase64: string) => {
         }
       }
     });
-    // Fixed: Standardized direct access to text property
     return JSON.parse(response.text || "{}");
   });
 };
@@ -172,7 +171,7 @@ export const refineVirtualTryOn = async (imageBase64: string, type: string) => {
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
-    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    const part = response.candidates?.[0]?.content?.parts?.find(p => !!p.inlineData);
     return (part && part.inlineData) ? `data:image/png;base64,${part.inlineData.data}` : "";
   });
 };
@@ -198,7 +197,6 @@ export const getStylistSuggestions = async (imageBase64: string) => {
         }
       }
     });
-    // Fixed: Standardized direct access to text property
     return JSON.parse(response.text || "{}");
   });
 };
@@ -214,7 +212,7 @@ export const generateLookbookImage = async (garmentBase64: string, items: Outfit
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
-    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    const part = response.candidates?.[0]?.content?.parts?.find(p => !!p.inlineData);
     if (!part || !part.inlineData) throw new Error("Lookbook failed.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
@@ -228,7 +226,7 @@ export const generateProductImage = async (desc: string) => {
       contents: { parts: [{ text: `High-end product shot of ${desc}, centered, pure white studio background.` }] },
       config: { imageConfig: { aspectRatio: "1:1" } }
     });
-    const part = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+    const part = response.candidates?.[0]?.content?.parts?.find(p => !!p.inlineData);
     if (!part || !part.inlineData) throw new Error("Asset generation failure.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
@@ -252,7 +250,6 @@ export const selectBestOutfit = async (images: string[], context: string) => {
         }
       } 
     });
-    // Fixed: Standardized direct access to text property
     return JSON.parse(response.text || "{}");
   });
 };
