@@ -1,0 +1,111 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>The New You - AI Fashion Studio</title>
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#1C1917" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              serif: ['Lora', 'serif'],
+              sans: ['Montserrat', 'sans-serif'],
+            },
+            colors: {
+                brand: {
+                    onyx: '#1C1917',
+                    sandstone: '#D6C7B3',
+                    champagne: '#E8D1B5',
+                    ivory: '#FDFCF8',
+                    slate: '#706F6C'
+                },
+                stone: {
+                    850: '#1c1917',
+                }
+            },
+            boxShadow: {
+                'luxury': '0 20px 50px -12px rgba(28, 25, 23, 0.08)',
+                'luxury-hover': '0 30px 60px -12px rgba(28, 25, 23, 0.15)',
+            },
+            animation: {
+              'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              'pulse-soft': 'pulseSoft 3s ease-in-out infinite',
+            },
+            keyframes: {
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              pulseSoft: {
+                  '0%, 100%': { opacity: '1' },
+                  '50%': { opacity: '0.6' }
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+        body {
+            background-color: #FDFCF8; /* brand.ivory */
+            color: #1C1917; /* brand.onyx */
+            min-height: 100vh;
+            selection-background-color: #E8D1B5;
+        }
+        
+        /* Custom Luxury Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #FDFCF8; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #D6C7B3; 
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #1C1917; 
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .luxury-card {
+            transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .luxury-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 30px 60px -12px rgba(28, 25, 23, 0.12);
+        }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "firebase/": "https://esm.sh/firebase@^12.6.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
