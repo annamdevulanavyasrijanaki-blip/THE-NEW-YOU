@@ -1,9 +1,8 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { BestOutfitSelection, OutfitSuggestion, Product } from '../types';
 
 // Global retry logic for AI and remote asset synchronization
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 2500): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, maxRetries = 3, baseDelay = 2000): Promise<T> {
   let lastError: any;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
@@ -11,10 +10,11 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 25
     } catch (error: any) {
       lastError = error;
       const msg = error?.message?.toLowerCase() || "";
+      // Only retry on network or temporary server issues
       const isRetryable = msg.includes("429") || msg.includes("quota") || msg.includes("503") || msg.includes("limit") || msg.includes("deadline");
       if (attempt < maxRetries - 1 && isRetryable) {
-        const delay = baseDelay * Math.pow(1.5, attempt) + Math.random() * 1000;
-        console.warn(`[Atelier] Neural link stabilizing. Calibrating attempt ${attempt + 1}...`);
+        const delay = baseDelay * Math.pow(2, attempt) + Math.random() * 500;
+        console.warn(`[Atelier] Connection unstable. Syncing attempt ${attempt + 1}...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
@@ -24,6 +24,10 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 5, baseDelay = 25
   throw lastError;
 }
 
+/**
+ * Normalizes images for Gemini input.
+ * Ensures images are JPEG and within resolution limits to avoid API rejection.
+ */
 export const resizeImage = async (base64Str: string, maxWidth = 1024, maxHeight = 1024): Promise<string> => {
   return new Promise((resolve) => {
     if (!base64Str) { resolve(""); return; }
@@ -32,8 +36,8 @@ export const resizeImage = async (base64Str: string, maxWidth = 1024, maxHeight 
     img.crossOrigin = "anonymous";
     img.src = src;
     img.onload = () => {
-      let width = img.width;
-      let height = img.height;
+      const width = img.width;
+      const height = img.height;
       const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
       const canvas = document.createElement('canvas');
       canvas.width = Math.floor(width * ratio);
@@ -43,19 +47,24 @@ export const resizeImage = async (base64Str: string, maxWidth = 1024, maxHeight 
       ctx.fillStyle = "white";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.85).split(',')[1]);
+      // Return raw base64 without prefix for Gemini SDK
+      resolve(canvas.toDataURL('image/jpeg', 0.8).split(',')[1]);
     };
     img.onerror = () => resolve(base64Str.split(',')[1] || base64Str); 
   });
 };
 
+/**
+ * Synchronizes remote assets (Boutique images) into base64 for processing.
+ */
 export const imageUrlToBase64 = async (url: string): Promise<string> => {
   return withRetry(async () => {
-    const proxiedUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=jpg&q=85`;
+    // Using a reliable proxy to handle CORS for fashion assets
+    const proxiedUrl = `https://images.weserv.nl/?url=${encodeURIComponent(url)}&output=jpg&q=80`;
     const response = await fetch(proxiedUrl);
     
     if (!response.ok) {
-      throw new Error(`Cloud asset synchronization failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Cloud asset synchronization failed: ${response.status}`);
     }
 
     const blob = await response.blob();
@@ -74,24 +83,29 @@ export const imageUrlToBase64 = async (url: string): Promise<string> => {
   });
 };
 
+/**
+ * CORE: HIGH-FIDELITY VIRTUAL TRY-ON
+ * Uses Gemini 2.5 Flash Image to synthesize subject and garment.
+ */
 export const generateVirtualTryOn = async (userImageBase64: string, dressImageBase64: string): Promise<string> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // Ensure inputs are clean and resized
     const cleanUser = await resizeImage(userImageBase64, 1024, 1024);
     const cleanDress = await resizeImage(dressImageBase64, 1024, 1024);
     
-    const prompt = `CRITICAL ARCHITECTURAL DIRECTIVE: HIGH-FIDELITY FASHION RECONSTRUCTION.
-    IMAGE 1: Subject silhouette.
-    IMAGE 2: Target garment/asset.
-    NEURAL TRANSFORMATION PROTOCOL:
-    1. SURGICAL CLOTHING ERASURE: Perfectly remove all existing garments from the subject in Image 1. Pay absolute attention to skin boundaries, neckline, and wrists. Ensure zero "ghosting" of original fabric.
-    2. MATERIAL SPECTRALITY: 
-       - If garment in Image 2 is SILK/SATIN: Render with high specular sheen, liquid-like fluid draping, and soft surface reflections.
-       - If garment is COTTON/LINEN: Render with visible weave texture, matte finish, and sharp structural folds.
-    3. POSE-AWARE TENSION PHYSICS: Simulate realistic micro-creases and stress-folds at natural joint pivots (elbows, waist, armpits) based on the subject's posture in Image 1. 
-    4. AMBIENT LIGHTING HARMONIZATION: Analyze lighting intensity and temperature from Image 1. Apply matching highlights and contact shadows to the new garment so it integrates natively.
-    5. IDENTITY LOCK: Maintain the subject's face, hair, and skin tone with 100% fidelity.
-    OUTPUT REQUIREMENT: Perform a full synthesis. Do NOT return original photos. Return a single photorealistic result.`;
+    const prompt = `FASHION RECONSTRUCTION TASK:
+    Perform a high-fidelity virtual try-on. 
+    Subject: First image provided.
+    Garment: Second image provided.
+    
+    INSTRUCTIONS:
+    1. Replace the subject's current clothing with the target garment from the second image.
+    2. Maintain subject identity (face, hair, skin tone) exactly.
+    3. Ensure realistic draping and fabric physics based on the subject's pose.
+    4. Harmonize lighting and shadows so the garment looks natively integrated.
+    5. Output the single photorealistic result.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
@@ -103,48 +117,62 @@ export const generateVirtualTryOn = async (userImageBase64: string, dressImageBa
         ],
       },
       config: {
-        imageConfig: { aspectRatio: "3:4" },
-        maxOutputTokens: 25000,
-        thinkingConfig: { thinkingBudget: 15000 }
+        imageConfig: { aspectRatio: "3:4" }
+        // Note: maxOutputTokens and thinkingConfig are omitted for image generation to prevent SDK errors
       }
     });
 
     const part = response.candidates?.[0]?.content?.parts?.find(p => !!p.inlineData);
-    if (!part || !part.inlineData) throw new Error("Synthesis failed to resolve visual data. Neural engine recalibration required.");
+    if (!part || !part.inlineData) {
+      throw new Error("The neural engine failed to return visual data. Please try a clearer silhouette photo.");
+    }
     return `data:image/png;base64,${part.inlineData.data}`;
   });
 };
 
+/**
+ * CONCIERGE CHAT
+ * Provides styling advice using Gemini 3 Flash.
+ */
 export const chatWithAI = async (message: string, imageBase64?: string): Promise<string> => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const parts: any[] = [{ text: message }];
+    
     if (imageBase64) {
       const cleanImg = await resizeImage(imageBase64, 512, 512);
       parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanImg } });
     }
+
+    // DO set thinkingBudget to 0 when maxOutputTokens is set to avoid empty responses on Gemini 3 models
     const response = await ai.models.generateContent({ 
       model: 'gemini-3-flash-preview', 
       contents: { parts },
       config: { 
-        systemInstruction: "You are LuxeFit AI. Provide elite, concierge-level styling advice in exactly one sentence.", 
-        maxOutputTokens: 100,
-        thinkingConfig: { thinkingBudget: 50 }
+        systemInstruction: "You are LuxeFit AI, a premium concierge. Provide elite styling advice in 1-2 elegant sentences.",
+        maxOutputTokens: 150,
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
-    return response.text || "...";
+    
+    return response.text || "I am currently recalibrating my aesthetic sensors. How else can I assist your style journey?";
   });
 };
 
+/**
+ * BIOMETRIC COLOR THEORY
+ * Analyzes skin tones to suggest palettes.
+ */
 export const analyzeColorTheory = async (imageBase64: string) => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanImg = await resizeImage(imageBase64, 512, 512);
+    
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { 
         parts: [
-          { text: "Analyze skin undertones and return Seasonal Palette JSON." }, 
+          { text: "Analyze skin undertones from this selfie and return a Seasonal Palette JSON." }, 
           { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }
         ] 
       },
@@ -152,38 +180,57 @@ export const analyzeColorTheory = async (imageBase64: string) => {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
-          properties: { season: { type: Type.STRING }, colors: { type: Type.ARRAY, items: { type: Type.STRING } }, advice: { type: Type.STRING } },
+          properties: { 
+            season: { type: Type.STRING }, 
+            colors: { type: Type.ARRAY, items: { type: Type.STRING } }, 
+            advice: { type: Type.STRING } 
+          },
           required: ["season", "colors", "advice"]
         }
       }
     });
+    
     return JSON.parse(response.text || "{}");
   });
 };
 
+/**
+ * REFINEMENT
+ * Tweaks specific visual parameters of a result.
+ */
 export const refineVirtualTryOn = async (imageBase64: string, type: string) => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanImg = await resizeImage(imageBase64, 1024, 1024);
-    const prompt = `NEURAL POLISHING: Optimize lighting for ${type}. Ensure realistic shadows and micro-textures.`;
+    const prompt = `Refine this fashion synthesis. Task: ${type}. Enhance shadows, lighting, and texture realism.`;
+    
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
+    
     const part = response.candidates?.[0]?.content?.parts?.find(p => !!p.inlineData);
     return (part && part.inlineData) ? `data:image/png;base64,${part.inlineData.data}` : "";
   });
 };
 
+/**
+ * ATELIER STYLIST SUGGESTIONS
+ * Suggests items to complete a look.
+ */
 export const getStylistSuggestions = async (imageBase64: string) => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanImg = await resizeImage(imageBase64, 768, 768);
+    
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: { 
-        parts: [{ text: "Suggest 3 complementary styling pieces. Return JSON." }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] 
+        parts: [
+          { text: "Suggest 3 complementary styling pieces to complete this outfit. Return as structured JSON." }, 
+          { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }
+        ] 
       },
       config: { 
         responseMimeType: "application/json",
@@ -191,29 +238,49 @@ export const getStylistSuggestions = async (imageBase64: string) => {
           type: Type.OBJECT,
           properties: {
             conceptTitle: { type: Type.STRING },
-            suggestions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { itemName: { type: Type.STRING }, description: { type: Type.STRING }, category: { type: Type.STRING }, searchQuery: { type: Type.STRING }, visualDescription: { type: Type.STRING } }, required: ["itemName", "description", "category", "searchQuery", "visualDescription"] } }
+            suggestions: { 
+              type: Type.ARRAY, 
+              items: { 
+                type: Type.OBJECT, 
+                properties: { 
+                  itemName: { type: Type.STRING }, 
+                  description: { type: Type.STRING }, 
+                  category: { type: Type.STRING }, 
+                  searchQuery: { type: Type.STRING }, 
+                  visualDescription: { type: Type.STRING } 
+                }, 
+                required: ["itemName", "description", "category", "searchQuery", "visualDescription"] 
+              } 
+            }
           },
           required: ["conceptTitle", "suggestions"]
         }
       }
     });
+    
     return JSON.parse(response.text || "{}");
   });
 };
 
+/**
+ * ASSET GENERATION
+ * Creates lookbooks or product shots.
+ */
 export const generateLookbookImage = async (garmentBase64: string, items: OutfitSuggestion[], title: string) => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const cleanImg = await resizeImage(garmentBase64, 1024, 1024);
     const itemsText = items.map(i => i.itemName).join(", ");
-    const prompt = `PROFESSIONAL LOOKBOOK: Fashion editorial for ${title}. Main garment styled with ${itemsText}. High-end studio lighting.`;
+    const prompt = `FASHION EDITORIAL: Stylized lookbook image for "${title}". Feature the primary garment styled with: ${itemsText}. Use high-end studio lighting and a clean architectural background.`;
+    
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: cleanImg } }] },
       config: { imageConfig: { aspectRatio: "3:4" } }
     });
+    
     const part = response.candidates?.[0]?.content?.parts?.find(p => !!p.inlineData);
-    if (!part || !part.inlineData) throw new Error("Lookbook failed.");
+    if (!part || !part.inlineData) throw new Error("Lookbook synthesis failed.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
 };
@@ -223,33 +290,46 @@ export const generateProductImage = async (desc: string) => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
-      contents: { parts: [{ text: `High-end product shot of ${desc}, centered, pure white studio background.` }] },
+      contents: { parts: [{ text: `High-end minimalist product shot of ${desc}. Centered on a pure white studio background. Professional lighting.` }] },
       config: { imageConfig: { aspectRatio: "1:1" } }
     });
+    
     const part = response.candidates?.[0]?.content?.parts?.find(p => !!p.inlineData);
-    if (!part || !part.inlineData) throw new Error("Asset generation failure.");
+    if (!part || !part.inlineData) throw new Error("Product asset generation failure.");
     return `data:image/png;base64,${part.inlineData.data}`;
   });
 };
 
+/**
+ * SELECTION ENGINE
+ * Chooses the best outfit from multiple candidates.
+ */
 export const selectBestOutfit = async (images: string[], context: string) => {
   return withRetry(async () => {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const resizedImages = await Promise.all(images.map(img => resizeImage(img, 512, 512)));
-    const parts: any[] = [{ text: `Analyze for ${context} and pick the best. Return JSON.` }];
+    
+    const parts: any[] = [{ text: `Analyze these outfit options for the following occasion: "${context}". Determine which is the most aesthetically appropriate and return your choice as JSON.` }];
     resizedImages.forEach(img => parts.push({ inlineData: { mimeType: 'image/jpeg', data: img } }));
+    
+    // DO use gemini-3-pro-preview for complex reasoning tasks (outfit selection/aesthetic analysis)
     const response = await ai.models.generateContent({ 
-      model: 'gemini-3-flash-preview', 
+      model: 'gemini-3-pro-preview', 
       contents: { parts }, 
       config: { 
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
-          properties: { selectedIndex: { type: Type.NUMBER }, reasoning: { type: Type.STRING }, stylingTips: { type: Type.STRING } },
+          properties: { 
+            selectedIndex: { type: Type.NUMBER }, 
+            reasoning: { type: Type.STRING }, 
+            stylingTips: { type: Type.STRING } 
+          },
           required: ["selectedIndex", "reasoning", "stylingTips"]
         }
       } 
     });
+    
     return JSON.parse(response.text || "{}");
   });
 };

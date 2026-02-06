@@ -63,7 +63,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
 
   useEffect(() => {
     if (preSelectedDress) {
-        setStagedDressPhoto(`data:image/jpeg;base64,${preSelectedDress}`);
+        // Handle pre-selected dress if provided from shop (already base64 string)
+        const src = preSelectedDress.startsWith('data:') ? preSelectedDress : `data:image/jpeg;base64,${preSelectedDress}`;
+        setStagedDressPhoto(src);
         addMessage({ role: 'ai', text: "Garment added to fitting tray. Upload your photo to see the results." });
     }
   }, [preSelectedDress]);
@@ -82,12 +84,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
     addMessage({ role: 'user', text });
     setMessages(prev => [...prev, { id: 'typing', role: 'ai', isTyping: true }]);
     try {
-      const response = await chatWithAI(text);
+      const response = await chatWithAI(text, stagedUserPhoto || undefined);
       setMessages(prev => prev.filter(m => m.id !== 'typing'));
       addMessage({ role: 'ai', text: response });
     } catch (error) {
       setMessages(prev => prev.filter(m => m.id !== 'typing'));
-      addMessage({ role: 'ai', text: "The studio is currently processing a high volume of requests. Please try again in a few moments." });
+      addMessage({ role: 'ai', text: "I'm having trouble connecting to the styling matrix. Please try asking again in a moment." });
     }
   };
 
@@ -116,24 +118,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
     setMessages(prev => [...prev, { id: 'typing', role: 'ai', isTyping: true }]);
 
     try {
-      const userBase64 = stagedUserPhoto.split(',')[1];
-      const dressBase64 = stagedDressPhoto.split(',')[1];
-      const resultImage = await generateVirtualTryOn(userBase64, dressBase64);
+      const resultImage = await generateVirtualTryOn(stagedUserPhoto, stagedDressPhoto);
       
       setMessages(prev => prev.filter(m => m.id !== 'typing'));
-      addMessage({ role: 'ai', text: "Your digital projection is complete. Fabric physics and ambient lighting have been synchronized for maximum realism.✨", image: resultImage, type: 'try-on-result' });
+      addMessage({ role: 'ai', text: "Your digital projection is complete. Fabric physics and ambient lighting have been synchronized for maximum realism. ✨", image: resultImage, type: 'try-on-result' });
       setStagedDressPhoto(null);
     } catch (error: any) {
       setMessages(prev => prev.filter(m => m.id !== 'typing'));
-      const errorMsg = error?.message?.toLowerCase() || "";
+      const msg = error?.message?.toLowerCase() || "";
       
-      if (errorMsg.includes("quota") || errorMsg.includes("429") || errorMsg.includes("limit")) {
-          addMessage({ role: 'ai', text: "The Atelier is at peak capacity. I've placed your request in the priority queue—please re-initialize in 30 seconds." });
-      } else if (errorMsg.includes("safety") || errorMsg.includes("filtered")) {
-          addMessage({ role: 'ai', text: "Our neural safety protocols were unable to verify this synthesis. Please ensure your silhouette photo has clear, natural lighting." });
+      if (msg.includes("quota") || msg.includes("limit") || msg.includes("429")) {
+        addMessage({ role: 'ai', text: "The studio is currently at peak capacity. I've saved your request—please try initializing once more in 30 seconds." });
+      } else if (msg.includes("safety") || msg.includes("blocked")) {
+        addMessage({ role: 'ai', text: "Our neural safety protocols flagged this image. Please ensure you're using a clear, well-lit photo of a person and a garment." });
       } else {
-          // Premium concierge feedback instead of technical error
-          addMessage({ role: 'ai', text: "The neural rendering engine is recalibrating for a higher precision match. Please initiate the synthesis again." });
+        addMessage({ role: 'ai', text: "The styling engine encountered a synchronization error. Please check your network and try again." });
       }
     } finally {
       setIsProcessing(false);
@@ -144,9 +143,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ preSelectedDress, onSave
     setIsProcessing(true);
     setProcessingMessage("Neural Polishing...");
     try {
-      const base64Only = currentImage.split(',')[1];
-      const refinedImage = await refineVirtualTryOn(base64Only, instruction);
-      setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, image: refinedImage } : msg));
+      const refinedImage = await refineVirtualTryOn(currentImage, instruction);
+      if (refinedImage) {
+        setMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, image: refinedImage } : msg));
+      }
     } catch (error) {
       addMessage({ role: 'ai', text: "The polishing step encountered an architectural bottleneck. Please try again shortly." });
     } finally {

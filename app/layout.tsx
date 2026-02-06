@@ -1,3 +1,5 @@
+// DO import React to resolve 'React' namespace error for React.ReactNode
+import React from 'react';
 import './globals.css';
 import { Lora, Montserrat } from 'next/font/google';
 
